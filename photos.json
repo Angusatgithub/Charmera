@@ -1,0 +1,7 @@
+[
+  { "src": "photos/your-photo-1.jpg", "x": 0,    "y": 0,    "width": 400 },
+  { "src": "photos/your-photo-2.jpg", "x": 450,  "y": -140, "width": 310 },
+  { "src": "photos/your-photo-3.jpg", "x": -500, "y": 170,  "width": 460 },
+  { "src": "photos/your-photo-4.jpg", "x": 180,  "y": 340,  "width": 370 },
+  { "src": "photos/your-photo-5.jpg", "x": -170, "y": -400, "width": 420 }
+]
