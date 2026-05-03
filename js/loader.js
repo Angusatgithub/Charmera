@@ -1,67 +1,50 @@
-const FRAME_COUNT = 174;
-const FRAME_RATE = 30;
-const FRAME_DURATION_MS = 1000 / FRAME_RATE;
 const MIN_DISPLAY_MS = 3000;
-const PRELOAD_CONCURRENCY = 6;
 const EXIT_CLASS_NAME = "loading-overlay--hidden";
 const EXIT_DURATION_BUFFER_MS = 900;
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 /**
  * Boots the loading overlay animation and coordinates its dismissal.
- * @returns {{ markReady: () => void, prioritizeApp: () => void, whenHidden: Promise<void> }}
+ * Uses a looping webm video — one request, hardware-decoded, zero jank.
+ * @returns {{ markReady: () => void, whenHidden: Promise<void> }}
  */
 export function initLoader() {
   const overlay = document.getElementById("loading-overlay");
-  const animation = document.getElementById("loading-animation");
+  const video = document.getElementById("loading-animation");
 
   if (
     !(overlay instanceof HTMLElement) ||
-    !(animation instanceof HTMLImageElement)
+    !(video instanceof HTMLVideoElement)
   ) {
     return {
       markReady() {},
-      prioritizeApp() {},
       whenHidden: Promise.resolve(),
     };
   }
 
   const reducedMotionQuery = window.matchMedia(REDUCED_MOTION_QUERY);
-  const frames = createFrameList();
-  let currentFrameIndex = 0;
   let minDelayElapsed = false;
   let appReady = false;
   let dismissing = false;
-  let frameTimer = null;
   let cleanupTimer = null;
-  let framePreloader = null;
   let resolveHidden = () => {};
   const whenHidden = new Promise((resolve) => {
     resolveHidden = resolve;
   });
 
-  const handleFirstFrameLoad = () => {
-    frames[0].loaded = true;
-  };
   const handleMotionPreferenceChange = () => {
     if (reducedMotionQuery.matches) {
-      stopAnimation();
-      showBestAvailableFrame(currentFrameIndex);
-      return;
+      video.pause();
+    } else {
+      video.play().catch(() => {});
     }
-
-    startAnimation();
   };
 
-  animation.addEventListener("load", handleFirstFrameLoad, { once: true });
   reducedMotionQuery.addEventListener("change", handleMotionPreferenceChange);
 
-  if (animation.complete && animation.naturalWidth > 0) {
-    handleFirstFrameLoad();
+  if (!reducedMotionQuery.matches) {
+    video.play().catch(() => {});
   }
-
-  framePreloader = preloadFrames(frames, animation);
-  startAnimation();
 
   const minDelayTimer = window.setTimeout(() => {
     minDelayElapsed = true;
@@ -73,18 +56,13 @@ export function initLoader() {
     maybeDismiss();
   }
 
-  function prioritizeApp() {
-    framePreloader?.dispose();
-    framePreloader = null;
-  }
-
   function maybeDismiss() {
     if (!minDelayElapsed || !appReady || dismissing) {
       return;
     }
 
     dismissing = true;
-    stopAnimation();
+    video.pause();
     overlay.classList.add(EXIT_CLASS_NAME);
     overlay.addEventListener("transitionend", handleOverlayHidden);
     cleanupTimer = window.setTimeout(
@@ -106,137 +84,21 @@ export function initLoader() {
       "change",
       handleMotionPreferenceChange,
     );
-    animation.removeEventListener("load", handleFirstFrameLoad);
-    stopAnimation();
     window.clearTimeout(minDelayTimer);
-    framePreloader?.dispose();
-    framePreloader = null;
 
     if (cleanupTimer !== null) {
       window.clearTimeout(cleanupTimer);
       cleanupTimer = null;
     }
 
+    video.removeAttribute("src");
+    video.load();
     overlay.remove();
     resolveHidden();
   }
 
-  function startAnimation() {
-    if (reducedMotionQuery.matches || frameTimer !== null) {
-      return;
-    }
-
-    frameTimer = window.setInterval(() => {
-      currentFrameIndex = (currentFrameIndex + 1) % FRAME_COUNT;
-      showBestAvailableFrame(currentFrameIndex);
-    }, FRAME_DURATION_MS);
-  }
-
-  function stopAnimation() {
-    if (frameTimer === null) {
-      return;
-    }
-
-    window.clearInterval(frameTimer);
-    frameTimer = null;
-  }
-
-  function showBestAvailableFrame(targetIndex) {
-    const nextIndex = findLoadedFrame(frames, targetIndex);
-
-    if (nextIndex === -1) {
-      return;
-    }
-
-    currentFrameIndex = nextIndex;
-    animation.src = frames[nextIndex].src;
-  }
-
   return {
     markReady,
-    prioritizeApp,
     whenHidden,
   };
-}
-
-function preloadFrames(frames, animation) {
-  const activeImages = new Map();
-  let nextIndex = 0;
-  let activeCount = 0;
-  let disposed = false;
-
-  queueMore();
-
-  return {
-    dispose() {
-      disposed = true;
-      activeImages.clear();
-    },
-  };
-
-  function queueMore() {
-    while (
-      !disposed &&
-      activeCount < PRELOAD_CONCURRENCY &&
-      nextIndex < frames.length
-    ) {
-      loadFrame(nextIndex);
-      nextIndex += 1;
-    }
-  }
-
-  function loadFrame(index) {
-    const frame = frames[index];
-    const image = new Image();
-
-    activeCount += 1;
-    activeImages.set(index, image);
-    image.decoding = "async";
-
-    if ("fetchPriority" in image) {
-      image.fetchPriority = index < PRELOAD_CONCURRENCY ? "high" : "low";
-    }
-
-    const finalize = () => {
-      activeCount = Math.max(0, activeCount - 1);
-      activeImages.delete(index);
-      queueMore();
-    };
-
-    image.addEventListener(
-      "load",
-      () => {
-        frame.loaded = true;
-
-        if (index === 0 && !animation.currentSrc) {
-          animation.src = frame.src;
-        }
-
-        finalize();
-      },
-      { once: true },
-    );
-
-    image.addEventListener("error", finalize, { once: true });
-    image.src = frame.src;
-  }
-}
-
-function findLoadedFrame(frames, startIndex) {
-  for (let offset = 0; offset < frames.length; offset += 1) {
-    const index = (startIndex - offset + frames.length) % frames.length;
-
-    if (frames[index].loaded) {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
-function createFrameList() {
-  return Array.from({ length: FRAME_COUNT }, (_, index) => ({
-    src: `PNG_Sequence/Kodak_Charmera-${String(index + 1).padStart(5, "0")}.png`,
-    loaded: false,
-  }));
 }

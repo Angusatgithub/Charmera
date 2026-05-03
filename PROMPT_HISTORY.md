@@ -106,3 +106,8 @@ Use this file as a lightweight running log of agent-assisted work in this repo.
 - Outcome: Briefly restyled the onboarding hint into pill chrome with a slide-in/out motion, then removed the hint element and all related logic so the shipped UI relies only on the brand pill and metadata dock.
 - Files: `index.html`, `styles.css`, `js/app.js`, `js/interactions.js`, `PLAN.md`, `PROMPT_HISTORY.md`
 - Follow-up: No follow-up needed unless a future onboarding need emerges that justifies reintroducing guidance.
+
+- Prompt: Fix production loading issues — loader stalls and animation jank from network-bound PNG playback, delay between loader dismissal and visible photos, and convert the loader to a webm video.
+- Outcome: Rewrote the loader from canvas+ImageBitmap PNG preloading to a single `<video>` element playing `loading.webm` (VP9 with alpha, 723 KB, encoded from the 174-frame PNG sequence). Removed all frame preloading, rAF stepping, and bitmap management from `loader.js`. Replaced `<canvas>` with `<video autoplay loop muted playsinline>` in the HTML. Removed `prioritizeApp()` from the loader API since a single video request doesn't compete with gallery image loading. Increased the initial photo readiness threshold from 6-of-10 to 12-of-16 priority photos so the loader waits for a larger visible set before dismissing. Updated the deploy workflow to include `loading.webm`.
+- Files: `index.html`, `js/loader.js`, `js/app.js`, `js/gallery.js`, `loading.webm`, `.github/workflows/deploy.yml`, `.github/copilot-instructions.md`, `README.md`, `PLAN.md`, `PROMPT_HISTORY.md`
+- Follow-up: The label token still uses on-demand PNG frame loading from `PNG_Sequence/` which is fine since it only loads a few frames at a time after the gallery is already up.

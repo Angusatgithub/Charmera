@@ -3,9 +3,11 @@
 ## Project Context
 
 - Charmera is a single-page photography portfolio built as an infinite canvas gallery.
-- The entire app lives in `index.html` with inline CSS and JavaScript.
+- The app is split across `index.html`, `styles.css`, and ES modules under `js/`.
 - `photos.json` is the source of truth for image placement and sizing.
-- `photos/` stores web-ready gallery images. `PNG_Sequence/` will be used to create a loading state from the png sequence.
+- `photos/` stores web-ready gallery images.
+- `loading.webm` is a VP9+alpha video encoded from `PNG_Sequence/` for the branded loader.
+- `PNG_Sequence/` is still used at runtime by the corner label token (`js/label-token.js`).
 
 ## Architecture
 

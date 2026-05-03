@@ -16,12 +16,7 @@
   <body>
     <div id="loading-overlay" role="status" aria-live="polite">
       <div class="loading-overlay__inner">
-        <img
-          id="loading-animation"
-          src="PNG_Sequence/Kodak_Charmera-00001.png"
-          alt=""
-          decoding="async"
-        />
+        <video id="loading-animation" src="loading.webm" autoplay loop muted playsinline aria-hidden="true"></video>
         <p class="loading-overlay__caption">loading...</p>
       </div>
     </div>
@@ -33,13 +28,7 @@
     <div id="vignette"></div>
     <div id="ui-label">
       <div class="ui-label__token-pill">
-        <img
-          class="ui-label__token"
-          src="PNG_Sequence/Kodak_Charmera-00001.png"
-          alt=""
-          aria-hidden="true"
-          decoding="async"
-        />
+        <canvas class="ui-label__token" aria-hidden="true"></canvas>
       </div>
       <div class="ui-label__text-pill">
         <span class="ui-label__text">Little Camera</span>

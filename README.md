@@ -12,6 +12,12 @@ The site stays framework-free and static:
 - `js/camera.js` owns pan, zoom, and inertia state
 - `js/interactions.js` binds pointer, wheel, and touch input
 - `js/gallery.js` loads `photos.json`, renders the photos, and computes the initial center point
+- `js/loader.js` controls the branded loading overlay using `loading.webm`
+- `js/label-token.js` drives the small Charmera camera token in the top-left pill from live camera motion
+- `js/metadata-dock.js` manages the bottom metadata pill shown on hover or long-press
+- `js/debug-panel.js` and `js/tuning.js` power the `?debug` tuning panel
+- `loading.webm` is a VP9 video with alpha, encoded from the `PNG_Sequence/` frames for the loader
+- `PNG_Sequence/` source frames used by the label token at runtime and as the source for `loading.webm`
 - `photos.json` is the source of truth for gallery layout data
 
 ## photos.json contract

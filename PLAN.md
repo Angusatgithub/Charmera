@@ -43,12 +43,13 @@ Charmera is a static photography portfolio site built as an infinite canvas. The
 - The top-left chrome was refined again: the Charmera token now sits in its own pill beside the `Little Camera` text pill, both use Source Code Pro, and the token now holds on its last animation frame between gestures instead of snapping back to frame 1.
 - Hover metadata no longer appears inside each image; it now uses a single bottom viewport pill with Source Code Pro styling, a `24px` semibold title, an `18px` date, a `20px` gap, down-out dismissal, title truncation on smaller widths, and a descender-safe line height.
 - The experimental bottom hint pill was removed after review so the shipped UI stays quieter; the remaining chrome is now the top-left brand pill and the bottom metadata dock only.
-- Phase 4 now adds a branded startup overlay driven by the `PNG_Sequence` frames, with a centered `loading...` caption and a fade-out into the gallery.
-- The production loading format is currently direct frame playback from the existing PNG sequence at 30 fps, which keeps the site static and avoids adding build tooling.
+- Phase 4 now adds a branded startup overlay with a centered `loading...` caption and a fade-out into the gallery.
+- The production loading format is a looping `loading.webm` (VP9 with alpha, ~723 KB) encoded from the `PNG_Sequence/` frames. This replaced direct PNG-frame playback to eliminate network contention and animation jank.
 - The loader now waits for both gallery readiness and a deliberate minimum hold before dismissal; the current hold is `3` seconds so the Charmera animation registers even on fast loads.
-- Reduced-motion handling now keeps the loading state static on frame 1 while preserving the same fade-out timing.
+- Reduced-motion handling now pauses the video while preserving the same fade-out timing.
 - The gallery intro reveal now waits until after the loader is gone, so the photo fade-and-lift animation is visible again instead of being hidden behind the overlay.
-- The top-left label pill now includes a small Charmera token that reuses the same PNG sequence after load instead of introducing a second visual asset.
+- The loader now waits for 12 of the 16 closest-to-center priority photos to load (up from 6 of 10) before dismissing, with a 12-second timeout fallback.
+- The top-left label pill now includes a small Charmera token that still loads PNG frames on demand after the gallery is up, keeping the runtime dependency on `PNG_Sequence/` for only the token.
 - That label token is now tied to the camera's live movement signal, so dragging and inertial motion briefly play the sequence while reduced-motion keeps the pill static.
 - Phase 1 camera safety work now derives bounds from the rendered gallery metrics rather than hard-coded world assumptions.
 - The camera now clamps zoom and translation against live gallery extents during pan, inertia, landing-view reset, and resize.
@@ -125,7 +126,7 @@ Use this section for short-lived task tracking during an editing session.
 ### Phase 4: Charmera Loading Identity
 
 - [x] Build a branded loading state using the PNG sequence as source material for startup.
-- [x] Decide on the production format for that animation before implementation: use direct frame playback from the existing PNG sequence.
+- [x] Decide on the production format for that animation before implementation: converted to `loading.webm` (VP9 with alpha) for single-request, hardware-decoded playback.
 - [x] Show the loading state while `photos.json` and the initial gallery shell are loading, then dismiss it cleanly once the first view is ready.
 - [x] Reuse the Charmera asset after load as a small corner mark or token that reacts when the user swipes or scrolls.
 - [x] Tie any post-load motion on that asset to the same camera velocity signal used for momentum effects so it feels connected to the interaction model.
