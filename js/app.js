@@ -99,6 +99,8 @@ loader.whenHidden.then(() => {
 
 async function boot() {
   await initializeGallery();
+  loader.prioritizeApp();
+  await gallery?.whenReady;
   loader.markReady();
 }
 

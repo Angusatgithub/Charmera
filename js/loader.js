@@ -2,13 +2,14 @@ const FRAME_COUNT = 174;
 const FRAME_RATE = 30;
 const FRAME_DURATION_MS = 1000 / FRAME_RATE;
 const MIN_DISPLAY_MS = 3000;
+const PRELOAD_CONCURRENCY = 6;
 const EXIT_CLASS_NAME = "loading-overlay--hidden";
 const EXIT_DURATION_BUFFER_MS = 900;
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 /**
  * Boots the loading overlay animation and coordinates its dismissal.
- * @returns {{ markReady: () => void, whenHidden: Promise<void> }}
+ * @returns {{ markReady: () => void, prioritizeApp: () => void, whenHidden: Promise<void> }}
  */
 export function initLoader() {
   const overlay = document.getElementById("loading-overlay");
@@ -20,6 +21,7 @@ export function initLoader() {
   ) {
     return {
       markReady() {},
+      prioritizeApp() {},
       whenHidden: Promise.resolve(),
     };
   }
@@ -32,6 +34,7 @@ export function initLoader() {
   let dismissing = false;
   let frameTimer = null;
   let cleanupTimer = null;
+  let framePreloader = null;
   let resolveHidden = () => {};
   const whenHidden = new Promise((resolve) => {
     resolveHidden = resolve;
@@ -53,7 +56,11 @@ export function initLoader() {
   animation.addEventListener("load", handleFirstFrameLoad, { once: true });
   reducedMotionQuery.addEventListener("change", handleMotionPreferenceChange);
 
-  preloadFrames(frames, animation);
+  if (animation.complete && animation.naturalWidth > 0) {
+    handleFirstFrameLoad();
+  }
+
+  framePreloader = preloadFrames(frames, animation);
   startAnimation();
 
   const minDelayTimer = window.setTimeout(() => {
@@ -64,6 +71,11 @@ export function initLoader() {
   function markReady() {
     appReady = true;
     maybeDismiss();
+  }
+
+  function prioritizeApp() {
+    framePreloader?.dispose();
+    framePreloader = null;
   }
 
   function maybeDismiss() {
@@ -97,6 +109,8 @@ export function initLoader() {
     animation.removeEventListener("load", handleFirstFrameLoad);
     stopAnimation();
     window.clearTimeout(minDelayTimer);
+    framePreloader?.dispose();
+    framePreloader = null;
 
     if (cleanupTimer !== null) {
       window.clearTimeout(cleanupTimer);
@@ -140,16 +154,55 @@ export function initLoader() {
 
   return {
     markReady,
+    prioritizeApp,
     whenHidden,
   };
 }
 
 function preloadFrames(frames, animation) {
-  frames.forEach((frame, index) => {
+  const activeImages = new Map();
+  let nextIndex = 0;
+  let activeCount = 0;
+  let disposed = false;
+
+  queueMore();
+
+  return {
+    dispose() {
+      disposed = true;
+      activeImages.clear();
+    },
+  };
+
+  function queueMore() {
+    while (
+      !disposed &&
+      activeCount < PRELOAD_CONCURRENCY &&
+      nextIndex < frames.length
+    ) {
+      loadFrame(nextIndex);
+      nextIndex += 1;
+    }
+  }
+
+  function loadFrame(index) {
+    const frame = frames[index];
     const image = new Image();
 
+    activeCount += 1;
+    activeImages.set(index, image);
     image.decoding = "async";
-    image.src = frame.src;
+
+    if ("fetchPriority" in image) {
+      image.fetchPriority = index < PRELOAD_CONCURRENCY ? "high" : "low";
+    }
+
+    const finalize = () => {
+      activeCount = Math.max(0, activeCount - 1);
+      activeImages.delete(index);
+      queueMore();
+    };
+
     image.addEventListener(
       "load",
       () => {
@@ -158,10 +211,15 @@ function preloadFrames(frames, animation) {
         if (index === 0 && !animation.currentSrc) {
           animation.src = frame.src;
         }
+
+        finalize();
       },
       { once: true },
     );
-  });
+
+    image.addEventListener("error", finalize, { once: true });
+    image.src = frame.src;
+  }
 }
 
 function findLoadedFrame(frames, startIndex) {

@@ -12,6 +12,7 @@
  *   applyTuning: () => void,
  *   setMotion: (motion: GalleryMotionState) => void,
  *   playIntro: () => void,
+ *   whenReady: Promise<void>,
  * }} GalleryController
  */
 
@@ -30,6 +31,9 @@
  */
 
 const DEFAULT_PHOTO_ASPECT_RATIO = 3 / 4;
+const INITIAL_PRIORITY_IMAGE_COUNT = 10;
+const INITIAL_READY_MINIMUM = 6;
+const INITIAL_READY_TIMEOUT_MS = 8000;
 const MOTION_PROPERTY_EPSILON = 0.015;
 const PHOTO_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
@@ -38,7 +42,7 @@ const PHOTO_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
   timeZone: "UTC",
 });
 
-function createPhotoElement(photo, index) {
+function createPhotoElement(photo, index, isPriority) {
   const container = document.createElement("div");
   container.className = "photo";
   container.style.setProperty("--photo-intro-delay", `${index * 0.05}s`);
@@ -49,6 +53,11 @@ function createPhotoElement(photo, index) {
   image.decoding = "async";
   image.draggable = false;
   image.addEventListener("load", () => image.classList.add("loaded"));
+
+  if (isPriority) {
+    image.loading = "eager";
+    image.fetchPriority = "high";
+  }
 
   container.appendChild(image);
 
@@ -157,7 +166,15 @@ function applyMotionProfile(container, photo, center, tuning) {
   );
 }
 
-function applyImageBehavior(image, tuning) {
+function applyImageBehavior(image, tuning, options = {}) {
+  const { isPriority = false } = options;
+
+  if (isPriority) {
+    image.loading = "eager";
+    image.fetchPriority = "high";
+    return;
+  }
+
   const useLazyLoading = tuning.layout?.lazyLoading !== false;
 
   image.loading = useLazyLoading ? "lazy" : "eager";
@@ -179,6 +196,7 @@ export async function loadGallery(world, tuning) {
 
   const photos = await response.json();
   const center = getClusterCenter(photos);
+  const priorityIndexes = getInitialPriorityIndexes(photos, center, tuning);
   const controller = {
     photos,
     center,
@@ -193,20 +211,37 @@ export async function loadGallery(world, tuning) {
     applyTuning,
     setMotion,
     playIntro,
+    whenReady: Promise.resolve(),
   };
   const items = photos.map((photo, index) => {
-    const element = createPhotoElement(photo, index);
+    const element = createPhotoElement(
+      photo,
+      index,
+      priorityIndexes.has(index),
+    );
 
     world.appendChild(element.container);
     return { photo, ...element };
   });
   let lastAppliedMotion = null;
 
+  controller.whenReady = waitForMinimumImages(
+    items
+      .filter((_, index) => priorityIndexes.has(index))
+      .map(({ image }) => image),
+    {
+      minimumCount: Math.min(priorityIndexes.size, INITIAL_READY_MINIMUM),
+      timeoutMs: INITIAL_READY_TIMEOUT_MS,
+    },
+  );
+
   function applyTuning() {
     items.forEach(({ photo, container, image }) => {
       applyPhotoMetrics(container, getPhotoMetrics(photo, center, tuning));
       applyMotionProfile(container, photo, center, tuning);
-      applyImageBehavior(image, tuning);
+      applyImageBehavior(image, tuning, {
+        isPriority: priorityIndexes.has(photos.indexOf(photo)),
+      });
     });
 
     controller.bounds = getBoundsFromMetrics(items, center, tuning);
@@ -279,4 +314,95 @@ export function getClusterCenter(photos) {
     x: (Math.min(...xCenters) + Math.max(...xCenters)) / 2,
     y: (Math.min(...yPositions) + Math.max(...yPositions)) / 2,
   };
+}
+
+function getInitialPriorityIndexes(photos, center, tuning) {
+  return new Set(
+    photos
+      .map((photo, index) => {
+        const metrics = getPhotoMetrics(photo, center, tuning);
+        const height = getPhotoHeight(photo, metrics);
+        const deltaX = metrics.x + metrics.width / 2 - center.x;
+        const deltaY = metrics.y + height / 2 - center.y;
+
+        return {
+          index,
+          distance: Math.hypot(deltaX, deltaY),
+        };
+      })
+      .sort((left, right) => left.distance - right.distance)
+      .slice(0, INITIAL_PRIORITY_IMAGE_COUNT)
+      .map(({ index }) => index),
+  );
+}
+
+function waitForMinimumImages(images, options) {
+  const { minimumCount, timeoutMs } = options;
+
+  if (images.length === 0 || minimumCount <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let successCount = 0;
+    let pendingCount = images.length;
+    const timeoutId = window.setTimeout(finish, timeoutMs);
+
+    images.forEach((image) => {
+      waitForImage(image).then((loaded) => {
+        if (settled) {
+          return;
+        }
+
+        pendingCount -= 1;
+
+        if (loaded) {
+          successCount += 1;
+        }
+
+        if (
+          successCount >= minimumCount ||
+          successCount + pendingCount < minimumCount
+        ) {
+          finish();
+        }
+      });
+    });
+
+    function finish() {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      window.clearTimeout(timeoutId);
+      resolve();
+    }
+  });
+}
+
+function waitForImage(image) {
+  if (image.complete) {
+    return Promise.resolve(image.naturalWidth > 0);
+  }
+
+  return new Promise((resolve) => {
+    const handleLoad = () => {
+      cleanup();
+      resolve(true);
+    };
+    const handleError = () => {
+      cleanup();
+      resolve(false);
+    };
+
+    image.addEventListener("load", handleLoad, { once: true });
+    image.addEventListener("error", handleError, { once: true });
+
+    function cleanup() {
+      image.removeEventListener("load", handleLoad);
+      image.removeEventListener("error", handleError);
+    }
+  });
 }
