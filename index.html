@@ -1,270 +1,62 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Angus Henderson — Photography</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Little Camera</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="loading-overlay" role="status" aria-live="polite">
+      <div class="loading-overlay__inner">
+        <img
+          id="loading-animation"
+          src="PNG_Sequence/Kodak_Charmera-00001.png"
+          alt=""
+          decoding="async"
+        />
+        <p class="loading-overlay__caption">loading...</p>
+      </div>
+    </div>
 
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      background: #0d0d0d;
-    }
+    <div id="canvas">
+      <div id="world"></div>
+    </div>
 
-    #canvas {
-      position: fixed;
-      inset: 0;
-      cursor: grab;
-      user-select: none;
-      -webkit-user-select: none;
-      touch-action: none;
-      overflow: hidden;
-    }
-
-    #canvas.dragging { cursor: grabbing; }
-
-    #world {
-      position: absolute;
-      top: 0; left: 0;
-      transform-origin: 0 0;
-      will-change: transform;
-    }
-
-    .photo {
-      position: absolute;
-    }
-
-    .photo img {
-      display: block;
-      width: 100%;
-      height: auto;
-      border-radius: 2px;
-      box-shadow: 0 6px 48px rgba(0, 0, 0, 0.7), 0 1px 4px rgba(0, 0, 0, 0.4);
-      pointer-events: none;
-      draggable: false;
-    }
-
-    /* Fade photos in as they load */
-    .photo img { opacity: 0; transition: opacity 0.6s ease; }
-    .photo img.loaded { opacity: 1; }
-
-    #vignette {
-      position: fixed;
-      inset: 0;
-      background: radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,0.75) 100%);
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    #ui-label {
-      position: fixed;
-      top: 24px; left: 28px;
-      z-index: 20;
-      pointer-events: none;
-      font-family: 'Cormorant Garant', Georgia, serif;
-      font-weight: 300;
-      font-size: 12px;
-      letter-spacing: 0.24em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.5);
-    }
-
-    #ui-hint {
-      position: fixed;
-      bottom: 26px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 20;
-      pointer-events: none;
-      font-family: 'Cormorant Garant', Georgia, serif;
-      font-weight: 300;
-      font-size: 11px;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.28);
-      white-space: nowrap;
-      transition: opacity 1.2s ease;
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(12px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-  </style>
-</head>
-<body>
-
-  <div id="canvas">
-    <div id="world"></div>
-  </div>
-
-  <div id="vignette"></div>
-  <div id="ui-label">Angus Henderson</div>
-  <div id="ui-hint">drag to explore &middot; scroll to zoom</div>
-
-  <script>
-    const canvas = document.getElementById('canvas');
-    const world  = document.getElementById('world');
-    const hint   = document.getElementById('ui-hint');
-
-    let cam   = { x: 0, y: 0, zoom: 1 };
-    let vel   = { x: 0, y: 0 };
-    let drag  = { active: false, lastX: 0, lastY: 0 };
-    let trail = [];
-    let raf   = null;
-    let pinch = { active: false, dist: 0 };
-
-    // ── Transform ────────────────────────────────────────────────────────────
-    function apply() {
-      world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`;
-    }
-
-    function zoomAt(factor, cx, cy) {
-      const nz = Math.max(0.1, Math.min(5, cam.zoom * factor));
-      const r  = nz / cam.zoom;
-      cam.x    = cx - (cx - cam.x) * r;
-      cam.y    = cy - (cy - cam.y) * r;
-      cam.zoom = nz;
-      apply();
-    }
-
-    // ── Momentum ─────────────────────────────────────────────────────────────
-    function inertia() {
-      vel.x *= 0.935;
-      vel.y *= 0.935;
-      cam.x += vel.x;
-      cam.y += vel.y;
-      apply();
-      if (Math.abs(vel.x) > 0.15 || Math.abs(vel.y) > 0.15) {
-        raf = requestAnimationFrame(inertia);
-      }
-    }
-
-    // ── Pointer ───────────────────────────────────────────────────────────────
-    canvas.addEventListener('pointerdown', e => {
-      if (e.pointerType === 'touch' && !e.isPrimary) return;
-      cancelAnimationFrame(raf);
-      vel = { x: 0, y: 0 };
-      drag = { active: true, lastX: e.clientX, lastY: e.clientY };
-      trail = [{ x: e.clientX, y: e.clientY, t: performance.now() }];
-      canvas.setPointerCapture(e.pointerId);
-      canvas.classList.add('dragging');
-      hint.style.opacity = '0';
-    });
-
-    canvas.addEventListener('pointermove', e => {
-      if (!drag.active || (e.pointerType === 'touch' && !e.isPrimary)) return;
-      cam.x += e.clientX - drag.lastX;
-      cam.y += e.clientY - drag.lastY;
-      drag.lastX = e.clientX;
-      drag.lastY = e.clientY;
-      apply();
-      trail.push({ x: e.clientX, y: e.clientY, t: performance.now() });
-      if (trail.length > 6) trail.shift();
-    });
-
-    canvas.addEventListener('pointerup', () => {
-      if (!drag.active) return;
-      drag.active = false;
-      canvas.classList.remove('dragging');
-      if (trail.length >= 2) {
-        const a = trail[0], b = trail[trail.length - 1];
-        const dt = Math.max(b.t - a.t, 1);
-        vel.x = (b.x - a.x) / dt * 14;
-        vel.y = (b.y - a.y) / dt * 14;
-        const spd = Math.hypot(vel.x, vel.y);
-        if (spd > 28) { vel.x *= 28 / spd; vel.y *= 28 / spd; }
-      }
-      inertia();
-    });
-
-    canvas.addEventListener('pointercancel', () => {
-      drag.active = false;
-      canvas.classList.remove('dragging');
-    });
-
-    // ── Wheel (scroll to pan, ctrl+scroll / trackpad pinch to zoom) ──────────
-    canvas.addEventListener('wheel', e => {
-      e.preventDefault();
-      if (e.ctrlKey || e.metaKey) {
-        zoomAt(e.deltaY < 0 ? 1.07 : 0.93, e.clientX, e.clientY);
-      } else {
-        cam.x -= e.deltaX;
-        cam.y -= e.deltaY;
-        apply();
-      }
-    }, { passive: false });
-
-    // ── Touch pinch zoom ──────────────────────────────────────────────────────
-    canvas.addEventListener('touchstart', e => {
-      if (e.touches.length === 2) {
-        drag.active = false;
-        pinch.dist   = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        pinch.active = true;
-      }
-    }, { passive: true });
-
-    canvas.addEventListener('touchmove', e => {
-      if (e.touches.length === 2 && pinch.active) {
-        e.preventDefault();
-        const nd = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        zoomAt(nd / pinch.dist, mx, my);
-        pinch.dist = nd;
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchend', () => { pinch.active = false; });
-
-    // ── Load photos from photos.json ──────────────────────────────────────────
-    fetch('photos.json')
-      .then(r => r.json())
-      .then(photos => {
-        photos.forEach((p, i) => {
-          const div = document.createElement('div');
-          div.className = 'photo';
-          div.style.cssText = `
-            left: ${p.x}px;
-            top: ${p.y}px;
-            width: ${p.width}px;
-            animation: fadeUp 0.5s ease ${i * 0.05}s both;
-          `;
-
-          const img = document.createElement('img');
-          img.src = p.src;
-          img.alt = p.alt || '';
-          img.draggable = false;
-          img.loading = 'lazy';
-          img.addEventListener('load', () => img.classList.add('loaded'));
-
-          div.appendChild(img);
-          world.appendChild(div);
-        });
-
-        // Centre the camera on the rough middle of the photo cluster
-        const xs = photos.map(p => p.x + p.width / 2);
-        const ys = photos.map(p => p.y);
-        const midX = (Math.min(...xs) + Math.max(...xs)) / 2;
-        const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
-        cam.x = window.innerWidth  / 2 - midX;
-        cam.y = window.innerHeight / 2 - midY;
-        apply();
-      });
-
-    // Fade hint out after 3s
-    setTimeout(() => { hint.style.opacity = '0'; }, 3000);
-  </script>
-</body>
+    <div id="vignette"></div>
+    <div id="ui-label">
+      <div class="ui-label__token-pill">
+        <img
+          class="ui-label__token"
+          src="PNG_Sequence/Kodak_Charmera-00001.png"
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+        />
+      </div>
+      <div class="ui-label__text-pill">
+        <span class="ui-label__text">Little Camera</span>
+      </div>
+    </div>
+    <div id="metadata-dock" class="metadata-dock--hidden" aria-hidden="true">
+      <span class="metadata-dock__title"></span>
+      <span class="metadata-dock__date"></span>
+    </div>
+    <button
+      id="debug-toggle"
+      type="button"
+      aria-controls="debug-panel"
+      aria-expanded="true"
+    >
+      Tune
+    </button>
+    <aside id="debug-panel" aria-label="Debug tuning panel"></aside>
+    <script type="module" src="js/app.js"></script>
+  </body>
 </html>
