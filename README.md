@@ -24,6 +24,9 @@ The site stays framework-free and static:
   "x": 600,
   "y": -200,
   "width": 380,
+  "height": 570,
+  "title": "My New Shot",
+  "date": "2026-05-03",
   "alt": "Optional description"
 }
 ```
@@ -32,6 +35,9 @@ The site stays framework-free and static:
 - `x` — required horizontal world position in pixels
 - `y` — required vertical world position in pixels
 - `width` — required rendered width in pixels; height is derived from the image aspect ratio
+- `height` — optional source image height; include it when the aspect ratio is not the default landscape `1440x1080`
+- `title` — optional metadata title shown in the bottom dock
+- `date` — optional ISO date shown in the bottom dock
 - `alt` — optional image description; defaults to an empty string when omitted
 
 At runtime, `js/gallery.js` reads this file, creates one `.photo` element per entry, and `js/app.js` centers the initial camera view from the spread of those coordinates.
@@ -46,21 +52,43 @@ photos/my-new-shot.jpg
 
 Resize/compress before committing. Aim for ≤300KB per image — WebP at ~80% quality is ideal. [Squoosh](https://squoosh.app) works well for this.
 
-**2. Add an entry to `photos.json`**
+**2. Sync `photos.json`**
+
+```bash
+python3 scripts/sync_photos.py
+```
+
+- Preserves existing `photos.json` entries and only generates defaults for new files
+- Applies any manual entries from `photos.overrides.json` after the generated pass
+- Places new photos on the current golden-angle spiral so the canvas stays balanced
+- Derives `title` from the filename and `date` from `kMDItemContentCreationDate` on macOS, with file modified time as a fallback
+- Uses `width: 480` for landscape images and `width: 360` for portrait images
+
+**3. Curate if needed**
+
+Use `photos.overrides.json` for anything that should survive future sync runs: hand-placed `x`/`y` coordinates, editorial titles or dates, or a rename that should inherit an existing placement.
+
+Example:
 
 ```json
-{ "src": "photos/my-new-shot.jpg", "x": 600, "y": -200, "width": 380 }
+{
+  "AaronEnjoyingPizza.jpg": {
+    "rename_from": "SPI00.jpg"
+  },
+  "Katie30thBirthday.jpg": {
+    "x": -420,
+    "y": 180,
+    "title": "Katie 30th Birthday"
+  }
+}
 ```
 
-- `src` — relative path to the file inside `photos/`
-- `x` / `y` — position in the world (pixels, can be negative)
-- `width` — display width in pixels; height is auto from the image's aspect ratio
-- `alt` — optional, but recommended if you want image descriptions later
+`rename_from` tells the sync script to keep the previous photo's placement and sizing when a file has just been renamed. Plain fields like `x`, `y`, `title`, `date`, `width`, and `alt` override the generated output after sync.
 
-**3. Commit and push**
+**4. Commit and push**
 
 ```
-git add photos/my-new-shot.jpg photos.json
+git add photos/my-new-shot.jpg photos.json photos.overrides.json scripts/sync_photos.py
 git commit -m "add: new shot"
 git push
 ```
@@ -77,6 +105,8 @@ A rough layout guide:
 - Mix portrait and landscape orientations
 - Vary widths between ~280px and ~520px for visual rhythm
 - Scatter in all four directions — don't just grow the grid downward
+
+For a visual rebalance pass, keep the spiral as the background structure and only override the photos you want to cluster. Group related shots into loose local neighborhoods, check that the overall canvas still has weight in all four quadrants, and avoid moving too many large images onto the same arc at once.
 
 ## Local preview
 

@@ -67,6 +67,16 @@ Use this file as a lightweight running log of agent-assisted work in this repo.
 
 ## 2026-05-03
 
+- Prompt: Add 92 newly dropped photos to the gallery and stop the import workflow from requiring manual coordinates and metadata for every file.
+- Outcome: Added `scripts/sync_photos.py`, synced `photos.json` from `photos/` up to `243` entries, preserved existing placements, generated spiral placements and metadata for the 92 new files, and normalized ordinal titles like `30th` during sync.
+- Files: `photos.json`, `scripts/sync_photos.py`, `README.md`, `PLAN.md`, `PROMPT_HISTORY.md`
+- Follow-up: If the next layout pass should group events instead of just filling the spiral, add a small manual-overrides layer on top of the sync script rather than going back to full manual editing.
+
+- Prompt: Make bulk sync coexist with hand-grouped curation and preserve layout when a photo file gets renamed.
+- Outcome: Added `photos.overrides.json`, taught `scripts/sync_photos.py` to merge manual overrides after sync, and added `rename_from` support so a renamed file can inherit the previous entry's placement before any editorial cleanup.
+- Files: `photos.json`, `photos.overrides.json`, `scripts/sync_photos.py`, `README.md`, `PLAN.md`, `PROMPT_HISTORY.md`
+- Follow-up: Use the overrides file for the next visual rebalance pass so related images can be clustered without turning `photos.json` back into a hand-maintained registry.
+
 - Prompt: Plan and implement Phase 4 so the site always opens on a Charmera-branded loading state using the PNG sequence, with a small `loading...` caption and a fade into the gallery.
 - Outcome: Added a full-screen startup overlay, implemented direct PNG-sequence playback at 30 fps, gated dismissal on both gallery readiness and a branded minimum hold, and added a reduced-motion path that shows a static frame instead of cycling the animation.
 - Files: `index.html`, `styles.css`, `js/app.js`, `js/loader.js`, `PLAN.md`, `PROMPT_HISTORY.md`

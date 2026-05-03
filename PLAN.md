@@ -11,12 +11,14 @@ Charmera is a static photography portfolio site built as an infinite canvas. The
 - Preserve the current visual tone unless a design change is explicitly requested.
 - Validate changes in a browser because there is no automated test suite.
 - The current gallery data was regenerated from the live `photos/` directory on 14 April 2026.
-- `photos.json` now contains 151 live entries and no longer uses template placeholders.
+- `photos.json` now contains 243 live entries and no longer uses template placeholders.
 - `photos.json` now also carries optional `title` and `date` fields used by the Phase 3 metadata pill.
+- `photos.overrides.json` is now the durable home for curated positions, metadata tweaks, and rename carry-overs that should survive bulk sync runs.
 - All current photos in `photos/` are 1440x1080 landscape images, so every entry currently uses `width: 480`.
 - If portrait images are added later, use `width: 360` unless a deliberate exception is needed.
 - The current spread uses a centered golden-angle spiral to keep the canvas balanced around the origin; future manual rebalancing can group related moments without losing that overall center.
 - The current `title` values were derived from filenames and the current `date` values were derived from each image file's `kMDItemContentCreationDate`, so treat them as a good baseline rather than final editorial metadata.
+- `scripts/sync_photos.py` is now the default bulk-import path: it preserves existing entries, adds missing files from `photos/`, and assigns default metadata and spiral positions for new photos.
 
 ## Active To Dos
 
@@ -30,9 +32,14 @@ Charmera is a static photography portfolio site built as an infinite canvas. The
 - [x] Decide whether the debug tuning panel should remain visible in the shipped UI or move behind a query flag or shortcut
 - [ ] Run a real touch-device pass on the Phase 3 long-press metadata reveal and tune the hold timing if needed
 - [ ] Review the auto-derived photo titles and dates and replace any awkward filename-based wording before treating the metadata as final
+- [x] Decide whether bulk photo imports should grow a small manual-overrides workflow so event-based regrouping survives future sync runs
 
 ## Latest Session Notes
 
+- Added 92 newly dropped photos to the gallery by syncing `photos/` into `photos.json`, bringing the live entry count to `243`.
+- Added `scripts/sync_photos.py` so future bulk photo drops can be imported with one command instead of manually assigning coordinates and metadata entry-by-entry.
+- Added `photos.overrides.json` as a durable curation layer so hand-grouped placements and rename carry-overs survive future sync runs.
+- The sync script preserves existing placements, adds missing files on the current golden-angle spiral, derives titles from filenames, derives dates from `kMDItemContentCreationDate` on macOS with a modified-time fallback, and normalizes ordinal titles like `30th`.
 - The top-left chrome was refined again: the Charmera token now sits in its own pill beside the `Little Camera` text pill, both use Source Code Pro, and the token now holds on its last animation frame between gestures instead of snapping back to frame 1.
 - Hover metadata no longer appears inside each image; it now uses a single bottom viewport pill with Source Code Pro styling, a `24px` semibold title, an `18px` date, a `20px` gap, down-out dismissal, title truncation on smaller widths, and a descender-safe line height.
 - The experimental bottom hint pill was removed after review so the shipped UI stays quieter; the remaining chrome is now the top-left brand pill and the bottom metadata dock only.
